@@ -98,3 +98,60 @@ IPADDRESS=$(az vm show \
 
 echo $IPADDRESS
 curl $IPADDRESS
+
+## Generalize the vm
+ssh $USERNAME@$IPADDRESS
+
+# prepare for generization
+sudo waagent -deprovision+user
+# say yes. then extension
+$ exit
+
+#deallocate the virtual machine.
+vmname=simpleLinuxVM
+az vm deallocate \
+    --name $vmname \
+    --resource-group $RESOURCEGROUP
+
+#generalize the virtual machine.
+vmname=simpleLinuxVM
+az vm generalize \
+    --name $vmname \
+    --resource-group $RESOURCEGROUP
+
+# create a new image
+az image create \
+    --name MyVMIMage \
+    --source $vmname \
+    --resource-group $RESOURCEGROUP
+
+# create a new vm
+az vm create \
+  --name MyVMFromImage \
+  --computer-name MyVMFromImage \
+  --image MyVMImage \
+  --admin-username azureuser \
+  --generate-ssh-keys \
+  --resource-group $RESOURCEGROUP
+
+# update the default web page with the server name.
+az vm extension set \
+  --publisher Microsoft.Azure.Extensions \
+  --name CustomScript \
+  --vm-name MyVMFromImage \
+  --settings '{"commandToExecute":"hostname > /var/www/html/index.html"}' \
+  --resource-group $RESOURCEGROUP
+
+az vm open-port \
+  --name MyVMFromImage \
+  --port 80 \
+  --resource-group $RESOURCEGROUP
+
+# echo http://$(az vm list-ip-addresses \
+#                 --name MyVMFromImage \
+#                 --query "[].virtualMachine.network.publicIpAddresses[*].ipAddress" \
+#                 --output tsv)
+
+newpip="138.91.121.119"
+
+ssh -o StrictHostKeyChecking=no $newpip
